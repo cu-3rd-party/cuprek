@@ -1,0 +1,28 @@
+# Russian profanity written with Latin letters ("nahuy", "pizdec", "blyad").
+# Matched against the raw Latin views without any folding.
+
+\bbl[yj]a+(d|t|h|\b)
+\bblyad
+\bblyat
+\bp[iy]zd
+\bpizdec
+\bnahu[iy]
+\bpohu[iy]
+\bn[ai]hu[iy]
+\bohue
+\bza[yj]?eb[aeiou]
+\bnaeb[aeiou]
+\bza?lupa
+\bpidor
+\bpidar
+\bpidoras
+\bmudak
+\bdroch
+\beblan
+\bhuy?nya
+\bhu[ei]vo
+\bebal[oi]?\b
+\beban
+\bebat
+\bmanda\b
+\bsuka\b

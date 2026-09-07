@@ -1,0 +1,12 @@
+# Fragments removed from the Cyrillic-folded text before matching Russian roots.
+# Innocent words that would otherwise collide with the "хуй" root.
+# (Text is already casefolded, "ё"->"е", soft/hard signs stripped.)
+страхуй
+страхуе
+страхую
+подстрахуй
+застрахуй
+психуй
+психуе
+психую
+очухаю

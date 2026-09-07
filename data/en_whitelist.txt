@@ -1,0 +1,8 @@
+# Words removed before matching English profanity.
+shiitake
+shiitakes
+shitake
+scunthorpe
+assassin
+assassinate
+assassination

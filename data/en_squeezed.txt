@@ -1,0 +1,20 @@
+# English profanity matched against the "squeezed" view (letters/digits/"*"
+# only, look-alikes folded to Latin, no boundaries). "x+" allows stretched
+# spellings ("fuuuck"); "[u*]" absorbs single-char censoring ("f*ck").
+
+f+[u*]*c+k+
+m+o+t+h+[ae]+r+f+[u*]*c+k
+b+i+t+c+h
+b+u+l+l+s+h+i+t
+d+i+c+k+h+e+a+d
+a+s+s+h+o+l+e
+j+[ae]+c+k+a+s+s
+d+u+m+b+a+s+s
+s+h+[i*]+t+
+n+i+g+g+[ae]+r
+n+i+g+g+a+h?
+f+a+g+g+o+t
+c+o+c+k+s+u+c+k
+w+a+n+k+e+r
+b+o+l+l+o+c+k
+c+u+m+s+h+o+t

@@ -1,0 +1,47 @@
+# English profanity matched against the "spaced" view (word structure kept,
+# look-alikes folded to Latin). Anchored so substrings of innocent words
+# ("class", "pass", "cockpit", "assist") do not misfire.
+
+\bfuck
+\bshit
+\bshite\b
+\bbullshit
+\bbitch
+\bcunt
+\bcock\b
+\bcocks\b
+\bcocksuck
+\bcockhead
+\bdick\b
+\bdicks\b
+\bdickhead
+\bdickwad
+\bdickface
+\bpuss(y|ies)\b
+\bslut
+\bwhore
+\bbastard
+\bass\b
+\basses\b
+\basshole
+\bdumbass
+\bjackass
+\bbadass
+\bdouche
+\bwank
+\btwat
+\bprick\b
+\bpricks\b
+\bbollock
+\bbugger
+\bfag\b
+\bfags\b
+\bfaggot
+\bnigg(er|a|ers|as|uh)\b
+\bmotherfuck
+\bstfu\b
+\bgtfo\b
+\barsehole
+\bshithead
+\bshithole
+\bshitty
