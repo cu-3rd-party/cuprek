@@ -23,9 +23,40 @@ async def pick_random_active_circle(session: AsyncSession) -> Circle | None:
     return await session.scalar(stmt)
 
 
-async def count_active_circles(session: AsyncSession) -> int:
-    stmt = select(func.count()).select_from(Circle).where(Circle.is_active.is_(True))
+async def count_circles(session: AsyncSession, *, active_only: bool = True) -> int:
+    stmt = select(func.count()).select_from(Circle)
+    if active_only:
+        stmt = stmt.where(Circle.is_active.is_(True))
     return int(await session.scalar(stmt) or 0)
+
+
+async def count_active_circles(session: AsyncSession) -> int:
+    return await count_circles(session, active_only=True)
+
+
+async def list_circles(
+    session: AsyncSession,
+    *,
+    active_only: bool = True,
+    limit: int = 20,
+    newest_first: bool = True,
+) -> list[Circle]:
+    stmt = select(Circle)
+    if active_only:
+        stmt = stmt.where(Circle.is_active.is_(True))
+    stmt = stmt.order_by(Circle.id.desc() if newest_first else Circle.id.asc()).limit(limit)
+    return list(await session.scalars(stmt))
+
+
+async def get_circle(session: AsyncSession, circle_id: int) -> Circle | None:
+    return await session.get(Circle, circle_id)
+
+
+async def get_circle_by_submission(
+    session: AsyncSession, submission_id: int
+) -> Circle | None:
+    stmt = select(Circle).where(Circle.submission_id == submission_id).limit(1)
+    return await session.scalar(stmt)
 
 
 async def circle_exists(session: AsyncSession, file_unique_id: str) -> bool:
