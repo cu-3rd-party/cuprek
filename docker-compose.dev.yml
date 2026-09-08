@@ -1,0 +1,11 @@
+# Local development only -- publishes Postgres so the integration tests can reach it.
+# Deliberately NOT named docker-compose.override.yml: that would be auto-loaded on
+# the server too, re-opening the port the base file keeps closed.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
+#
+# Set DEV_PG_PORT if 5432 is already taken on your machine by another project.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${DEV_PG_PORT:-5432}:5432"

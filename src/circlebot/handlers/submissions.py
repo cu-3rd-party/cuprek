@@ -44,6 +44,7 @@ async def on_video_note(
         )
         await session.commit()
         total = await repo.count_active_circles(session)
+        log.info("circle added directly by admin=%s, pool=%s", user.id, total)
         await message.reply(f"✅ Добавил в базу. Всего кружков: {hbold(total)}")
         return
 
@@ -87,6 +88,7 @@ async def on_video_note(
     submission.mod_chat_id = settings.mod_chat_id
     submission.mod_message_id = note.message_id
     await session.commit()
+    log.info("submission=%s from user=%s posted for review", submission.id, user.id)
 
     await message.reply("🎬 Отправил на модерацию, спасибо! Сообщу, когда решат.")
 

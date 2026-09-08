@@ -43,6 +43,9 @@
   **♻️ Вернуть кружок**.
 * `/circles all` — то же, но вместе с уже удалёнными (у них кнопка ♻️).
 * `/rmcircle <id>` — удалить кружок по номеру из `/circles`.
+* `/status` — состояние деплоя: аптайм, `@username` и id бота, версия сборки (`GIT_SHA`),
+  пинг базы, счётчики кружков и заявок, возраст heartbeat. Проверить сервер с телефона,
+  не заходя по ssh.
 * На карточке модерации у принятого кружка тоже есть кнопка 🗑 — модератор может
   откатить своё «Принять».
 
@@ -69,6 +72,8 @@
    BOT_TOKEN=...
    ADMIN_IDS=11111111,22222222
    MOD_CHAT_ID=-1001234567890
+   # на сервере обязательно задать свой — иначе используется дефолтный `bot`
+   POSTGRES_PASSWORD=...
    ```
 
 4. **Запустить**:
@@ -92,9 +97,11 @@ pip install -e ".[dev]"
 # быстрые юнит-тесты (без БД)
 pytest tests/test_chance.py tests/test_profanity.py
 
-# полный набор — поднять Postgres (repo-тесты создадут отдельную БД circlebot_test)
-docker compose up -d postgres
-export DATABASE_URL=postgresql+asyncpg://bot:bot@localhost:5432/circlebot
+# полный набор — поднять Postgres (repo-тесты создадут отдельную БД circlebot_test).
+# Порт 5432 наружу открывает только dev-оверлей, в базовом compose его нет.
+# Если 5432 уже занят другим проектом -- задать DEV_PG_PORT.
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
+export DATABASE_URL=postgresql+asyncpg://bot:$POSTGRES_PASSWORD@localhost:${DEV_PG_PORT:-5432}/circlebot
 pytest
 
 ruff check src tests
@@ -103,9 +110,21 @@ ruff check src tests
 Запуск бота локально (нужен доступный Postgres и `.env` в корне):
 
 ```bash
-export DATABASE_URL=postgresql+asyncpg://bot:bot@localhost:5432/circlebot
+export DATABASE_URL=postgresql+asyncpg://bot:$POSTGRES_PASSWORD@localhost:5432/circlebot
 alembic upgrade head
 python -m circlebot
+```
+
+### Обновление зависимостей
+
+`pyproject.toml` — источник правды для диапазонов версий, `requirements.txt` —
+зафиксированный результат их разрешения (его и ставит Dockerfile, поэтому сборка
+воспроизводима и слой с зависимостями кэшируется). После правки зависимостей в
+`pyproject.toml` пересобрать лок в контейнере, чтобы пины соответствовали Linux:
+
+```bash
+docker run --rm -v "$PWD":/w -w /w python:3.12-slim-bookworm \
+  sh -c "pip install -q uv && uv pip compile pyproject.toml -o requirements.txt"
 ```
 
 ### Настройка детектора мата
@@ -129,11 +148,15 @@ python -m circlebot
 src/circlebot/
   __main__.py          точка входа (Bot + Dispatcher + polling)
   config.py            настройки из .env (pydantic-settings)
+  logging.py           формат логов (всегда UTC, суффикс Z)
+  health.py            `python -m circlebot.health` — healthcheck контейнера
   db/                  models, engine, repo (запросы)
   services/
     profanity.py       детектор мата
     chance.py          формула вероятности
     locks.py           KeyedLock — сериализация сценария по (chat, user)
+    alerts.py          WARNING+ из логов -> чат модераторов
+    heartbeat.py       пинг БД + heartbeat-файл для healthcheck
   middlewares/
     db_session.py      AsyncSession на апдейт
   handlers/
@@ -142,9 +165,106 @@ src/circlebot/
     moderation.py      кнопки принять/отклонить
     circles.py         /circles, /rmcircle, удаление/возврат кружков
     common.py          /start, /id
+    status.py          /status — состояние деплоя
 migrations/            Alembic
 data/                  словари/паттерны детектора
 ```
+
+## Деплой на сервер
+
+Сборка идёт прямо на сервере, реестр не нужен. Нужен только Docker с compose v2
+(`docker compose version`; для длинной формы `env_file:` требуется ≥ 2.24).
+
+```bash
+git clone <repo> cuprek && cd cuprek
+cp .env.example .env && nano .env     # BOT_TOKEN, ADMIN_IDS, MOD_CHAT_ID, POSTGRES_PASSWORD
+
+GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
+docker compose ps                     # bot должен стать healthy в течение ~1 минуты
+docker compose logs -f bot
+```
+
+`GIT_SHA` необязателен, но с ним `/status` показывает, какая сборка сейчас живая.
+Удобно завернуть обновление в скрипт:
+
+```bash
+git pull
+GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
+docker image prune -f                 # подчистить повисшие слои прошлой сборки
+```
+
+Проверить, что всё живо, не заходя в логи:
+
+```bash
+docker compose ps                     # healthy / unhealthy по heartbeat-файлу
+docker compose exec bot python -m circlebot.health
+docker stats --no-stream              # фактическое потребление памяти
+```
+
+Что уже настроено, чтобы сервис не разрастался и не падал молча:
+
+* **Логи ограничены** — 10 МБ × 5 файлов на контейнер, иначе `json-file` растёт
+  бесконечно и со временем забивает диск.
+* **Имя проекта зафиксировано** (`name: cuprek` в compose), поэтому том всегда
+  `cuprek_pgdata` независимо от имени каталога с чекаутом — новый пустой том при
+  переносе не появится.
+* **Postgres не публикует порт наружу** — только внутренняя сеть compose. Для доступа
+  из шелла: `docker compose exec postgres psql -U bot circlebot`.
+* **Лимиты памяти** — 256 МБ на бота, 512 МБ на Postgres, и `max_connections=30`
+  вместо стоковой сотни.
+* **Слой зависимостей кэшируется и запинен** (`requirements.txt`) — правка кода
+  пересобирает образ за ~12 секунд вместо минуты, и одна и та же ревизия всегда
+  собирается с одними и теми же версиями пакетов.
+* **Образ не от root** — процесс идёт под uid 10001.
+* **Healthcheck по heartbeat** — бот раз в `HEARTBEAT_INTERVAL` секунд пингует
+  Postgres и трогает файл; если событийный цикл завис или база отвалилась,
+  контейнер уходит в `unhealthy`, даже если процесс формально жив.
+* **Алерты в Telegram** — записи уровня `ALERT_LEVEL` и выше дублируются в
+  `ALERT_CHAT_ID` (по умолчанию `MOD_CHAT_ID`), так что о поломке видно без ssh.
+* Бэкап базы: `docker compose exec -T postgres pg_dump -U bot circlebot > dump.sql`.
+
+### Чтение логов удалённо
+
+Всё пишется в stdout, файлов с логами нет — только `docker compose logs`.
+**Время всегда UTC и помечено суффиксом `Z`**: сервер обычно живёт в UTC, а «сутки»
+бота считаются по `TIMEZONE`, и без пометки эти два времени не различить.
+
+```bash
+docker compose logs -f bot                  # хвост в реальном времени
+docker compose logs --since 1h bot          # за последний час
+docker compose logs --tail 200 bot          # последние 200 строк
+docker compose logs --since 24h bot | grep -E 'WARNING|ERROR|CRITICAL'
+docker compose logs bot | grep 'circle='    # что, кому и с каким шансом улетело
+```
+
+Нормальный старт — три строки, по которым видно всё существенное:
+
+```
+2026-09-07 20:33:50Z INFO     __main__: starting bot=@cuprekbot id=123456 build=80bade9 circles=42 admins=[111] mod_chat=-100... watched_chats=all tz=Europe/Moscow
+2026-09-07 20:33:50Z INFO     __main__: log alerts -> chat=-100... at WARNING
+2026-09-07 20:33:50Z INFO     __main__: polling started
+```
+
+Ошибки конфигурации — одна понятная строка вместо трейсбека в цикле рестартов:
+
+| строка в логе | что делать |
+|---|---|
+| `BOT_TOKEN is invalid — Telegram rejected it as Unauthorized` | проверить `BOT_TOKEN` |
+| `database unreachable at startup: ...` | проверить `POSTGRES_PASSWORD` и `docker compose ps postgres` |
+| `circle pool is empty` | админу отправить боту кружки в личку |
+| `heartbeat: database unreachable` | база отвалилась, контейнер уйдёт в `unhealthy` |
+
+Штатная остановка логируется явно, поэтому рестарт не выглядит как падение:
+
+```
+2026-09-07 20:40:11Z INFO     __main__: received SIGTERM, shutting down
+2026-09-07 20:40:11Z INFO     __main__: polling stopped
+2026-09-07 20:40:11Z INFO     __main__: shutdown complete
+```
+
+Записи уровня `ALERT_LEVEL` и выше дополнительно уходят в `ALERT_CHAT_ID` — с
+дедупликацией и лимитом на частоту, чтобы цикл падений не превратился во флуд;
+подавленные повторы приезжают счётчиком `(+N more suppressed)`.
 
 ## Заметки по эксплуатации
 

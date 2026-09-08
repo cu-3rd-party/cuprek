@@ -1,0 +1,12 @@
+# Normalise text files in the repo; check out with platform-native endings.
+* text=auto
+
+# Files consumed by Linux/Docker MUST stay LF regardless of the checkout
+# platform. With CRLF, entrypoint.sh keeps a trailing carriage return on its
+# shebang inside the image and the container dies with "exec format error".
+*.sh             text eol=lf
+Dockerfile       text eol=lf
+*.yml            text eol=lf
+*.yaml           text eol=lf
+requirements.txt text eol=lf
+alembic.ini      text eol=lf

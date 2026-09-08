@@ -92,6 +92,10 @@ async def on_moderation(
     submission.reviewed_by = callback.from_user.id
     submission.reviewed_at = datetime.now(UTC)
     await session.commit()
+    log.info(
+        "submission=%s -> %s by=%s circle=%s",
+        submission.id, submission.status, callback.from_user.id, new_circle_id,
+    )
 
     await _refresh_card(
         callback,

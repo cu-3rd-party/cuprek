@@ -1,34 +1,80 @@
+# Production-safe base. Postgres is reachable only over the compose network;
+# docker-compose.dev.yml adds the host port the test suite needs.
+#
+# Pinning the project name keeps the volume at `cuprek_pgdata` no matter what the
+# checkout directory is called -- otherwise a clone into a differently-named folder
+# silently creates a second, empty database.
+name: cuprek
+
+# Docker's json-file driver is unbounded by default, which is the classic way to fill
+# a VPS disk. Cap it for every service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: bot
-      POSTGRES_PASSWORD: bot
-      POSTGRES_DB: circlebot
+      POSTGRES_USER: ${POSTGRES_USER:-bot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-circlebot}
+    # Trimmed for a small VPS: one bot with a ~15-connection pool ceiling has no
+    # use for the stock 100 connections.
+    command: postgres -c max_connections=30 -c shared_buffers=128MB
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      # exposed on the host for local dev / running the test suite
-      - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bot -d circlebot"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bot} -d ${POSTGRES_DB:-circlebot}"]
+      interval: 10s
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   bot:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: cuprek-bot:local
     env_file:
+      # required: true -> a missing .env fails with a readable message instead of a
+      # pydantic traceback in a restart loop.
       - path: .env
-        required: false
+        required: true
     environment:
-      # override whatever is in .env so the bot talks to the compose service
-      DATABASE_URL: postgresql+asyncpg://bot:bot@postgres:5432/circlebot
+      # Override whatever is in .env so the bot talks to the compose service, and keep
+      # the credentials in one place.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-circlebot}
+    volumes:
+      # Wordlists stay on the host, so editing one and running
+      # `docker compose restart bot` is enough -- no rebuild.
+      - ./data:/app/data:ro
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # Fails once the bot stops beating (event loop wedged or Postgres unreachable),
+      # so `docker compose ps` distinguishes healthy from merely running.
+      test: ["CMD", "python", "-m", "circlebot.health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   pgdata:

@@ -102,12 +102,11 @@ async def pending_submission_exists(session: AsyncSession, file_unique_id: str) 
     return await session.scalar(stmt) is not None
 
 
-async def count_pending_submissions(session: AsyncSession, user_id: int) -> int:
-    stmt = (
-        select(func.count())
-        .select_from(Submission)
-        .where(Submission.from_user_id == user_id, Submission.status == "pending")
-    )
+async def count_pending_submissions(session: AsyncSession, user_id: int | None = None) -> int:
+    """Pending submissions for one user, or across everyone when ``user_id`` is None."""
+    stmt = select(func.count()).select_from(Submission).where(Submission.status == "pending")
+    if user_id is not None:
+        stmt = stmt.where(Submission.from_user_id == user_id)
     return int(await session.scalar(stmt) or 0)
 
 

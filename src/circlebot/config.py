@@ -46,6 +46,22 @@ class Settings(BaseSettings):
     drop_pending_updates: bool = True
     log_level: str = "INFO"
 
+    # --- Remote observability ---
+    # Mirror WARNING+ log records into a Telegram chat so breakage is visible
+    # without SSH-ing into the box.
+    alert_enabled: bool = True
+    alert_chat_id: int | None = None  # empty -> falls back to mod_chat_id
+    alert_level: str = "WARNING"
+
+    # Liveness: the bot pings the DB and touches this file on a timer; the container
+    # healthcheck reads its mtime (see circlebot.health).
+    heartbeat_file: str = "/tmp/circlebot.heartbeat"
+    heartbeat_interval: int = 30
+    heartbeat_max_age: int = 120
+
+    # Baked in at build time (docker build --build-arg GIT_SHA=...), shown by /status.
+    git_sha: str = "unknown"
+
     # Directory with the profanity word/pattern lists. Relative paths are resolved
     # against the current working directory (repo root locally, /app in Docker).
     data_dir: str = "data"
@@ -55,10 +71,22 @@ class Settings(BaseSettings):
     def _coerce_int_set(cls, value: object) -> set[int]:
         return _parse_int_set(value)
 
+    @field_validator("alert_chat_id", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value: object) -> object:
+        # ALERT_CHAT_ID= (left empty in .env) means "use mod_chat_id", not a parse error.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @property
     def data_path(self) -> Path:
         path = Path(self.data_dir)
         return path if path.is_absolute() else (Path.cwd() / path).resolve()
+
+    @property
+    def alert_target_chat_id(self) -> int:
+        return self.alert_chat_id if self.alert_chat_id is not None else self.mod_chat_id
 
 
 @lru_cache
