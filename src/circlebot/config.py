@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     admin_ids: Annotated[set[int], NoDecode] = Field(default_factory=set)
     mod_chat_id: int
     allowed_chat_ids: Annotated[set[int], NoDecode] = Field(default_factory=set)
+    # User IDs that get a circle for every profane message, bypassing
+    # PROFANITY_FREE_MESSAGES, the chance curve and the daily one-circle-per-chat
+    # cap. allowed_chat_ids still applies.
+    guaranteed_circle_ids: Annotated[set[int], NoDecode] = Field(default_factory=set)
 
     timezone: str = "Europe/Moscow"
     max_pending_per_user: int = 5
@@ -66,7 +70,7 @@ class Settings(BaseSettings):
     # against the current working directory (repo root locally, /app in Docker).
     data_dir: str = "data"
 
-    @field_validator("admin_ids", "allowed_chat_ids", mode="before")
+    @field_validator("admin_ids", "allowed_chat_ids", "guaranteed_circle_ids", mode="before")
     @classmethod
     def _coerce_int_set(cls, value: object) -> set[int]:
         return _parse_int_set(value)

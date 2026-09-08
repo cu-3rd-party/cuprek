@@ -40,12 +40,13 @@ async def watch(
         return
 
     chat_id, user_id = message.chat.id, user.id
+    guaranteed = user_id in settings.guaranteed_circle_ids
     day = datetime.now(ZoneInfo(settings.timezone)).date()
 
     async with locks((chat_id, user_id)):
         activity = await repo.get_daily_activity(session, chat_id, user_id, day)
-        if activity is not None and activity.circle_sent:
-            return  # user already got their circle today in this chat -> no longer tracked
+        if not guaranteed and activity is not None and activity.circle_sent:
+            return  # non-guaranteed user already got today's circle in this chat
 
         activity = await repo.increment_profane_count(session, chat_id, user_id, day)
         await session.commit()
@@ -57,7 +58,7 @@ async def watch(
             base_chance=settings.profanity_base_chance,
             step=settings.profanity_step,
         )
-        if chance <= 0.0 or random.random() >= chance:
+        if not guaranteed and (chance <= 0.0 or random.random() >= chance):
             log.debug(
                 "no circle: chat=%s user=%s count=%s chance=%.3f match=%r",
                 chat_id, user_id, count, chance, match,
@@ -80,6 +81,6 @@ async def watch(
         await repo.mark_circle_sent(session, chat_id, user_id, day, circle.id)
         await session.commit()
         log.info(
-            "circle=%s sent chat=%s user=%s count=%s chance=%.3f",
-            circle.id, chat_id, user_id, count, chance,
+            "circle=%s sent chat=%s user=%s count=%s chance=%.3f guaranteed=%s",
+            circle.id, chat_id, user_id, count, chance, guaranteed,
         )
