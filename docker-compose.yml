@@ -74,7 +74,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          # Steady state is ~178 MiB, of which aiogram alone is ~121 MiB -- it builds
+          # pydantic models for the whole Telegram API at import. That is a floor,
+          # not a leak, so the cap is set for burst headroom rather than to squeeze:
+          # a 256M cap left only 78 MiB free and was tripped by a single extra
+          # process in the container. Limits are caps, not reservations.
+          memory: 512M
 
 volumes:
   pgdata:
