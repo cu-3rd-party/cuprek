@@ -26,6 +26,7 @@ from .services.alerts import attach_telegram_alerts, detach_telegram_alerts
 from .services.heartbeat import heartbeat_loop, ping_db
 from .services.locks import KeyedLock
 from .services.profanity import ProfanityDetector
+from .services.runtime_config import resolve_profanity_config
 
 log = logging.getLogger(__name__)
 
@@ -147,6 +148,17 @@ async def main() -> None:
         )
         if circles == 0:
             log.warning("circle pool is empty \u2014 the bot has nothing to reply with yet")
+
+        async with sessionmaker() as session:
+            overrides = await repo.get_bot_settings(session)
+        curve = resolve_profanity_config(overrides, settings)
+        log.info(
+            "profanity curve: free=%s base=%g%% step=%g%% overrides=%s",
+            curve.free_messages,
+            curve.base_chance,
+            curve.step,
+            ", ".join(sorted(overrides)) or "none",
+        )
 
         if settings.alert_enabled:
             alerts = await attach_telegram_alerts(

@@ -16,6 +16,7 @@ from ..services.access import IdRegistry
 from ..services.chance import circle_chance
 from ..services.locks import KeyedLock
 from ..services.profanity import ProfanityDetector
+from ..services.runtime_config import resolve_profanity_config
 
 router = Router(name="profanity_watch")
 log = logging.getLogger(__name__)
@@ -54,11 +55,12 @@ async def watch(
         await session.commit()
         count = activity.profane_count
 
+        cfg = resolve_profanity_config(await repo.get_bot_settings(session), settings)
         chance = circle_chance(
             count,
-            free_messages=settings.profanity_free_messages,
-            base_chance=settings.profanity_base_chance,
-            step=settings.profanity_step,
+            free_messages=cfg.free_messages,
+            base_chance=cfg.base_chance,
+            step=cfg.step,
         )
         if not guaranteed and (chance <= 0.0 or random.random() >= chance):
             log.debug(

@@ -24,3 +24,14 @@ def test_parse_int_set_forms() -> None:
     assert parse_int_set("") == set()
     assert parse_int_set(None) == set()
     assert parse_int_set([1, "2"]) == {1, 2}
+
+
+def test_profanity_knobs_read_from_env() -> None:
+    s = _mk(
+        profanity_free_messages="5",
+        profanity_base_chance="2.5",
+        profanity_step="1.0",
+    )
+    assert s.profanity_free_messages == 5
+    assert s.profanity_base_chance == 2.5
+    assert s.profanity_step == 1.0

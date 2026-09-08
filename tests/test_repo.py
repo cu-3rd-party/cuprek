@@ -197,6 +197,32 @@ async def test_list_circles_order_and_filter(sessionmaker):
         assert [c.id for c in oldest_first] == [1, 2, 3]
 
 
+async def test_bot_settings_roundtrip(sessionmaker):
+    async with sessionmaker() as session:
+        await repo.set_bot_setting(session, "profanity_base_chance", 2.0, updated_by=42)
+        await repo.set_bot_setting(session, "profanity_step", 1.0, updated_by=42)
+        await session.commit()
+
+    async with sessionmaker() as session:
+        assert await repo.get_bot_settings(session) == {
+            "profanity_base_chance": 2.0,
+            "profanity_step": 1.0,
+        }
+
+    async with sessionmaker() as session:
+        await repo.set_bot_setting(session, "profanity_base_chance", 5.5, updated_by=99)
+        await session.commit()
+    async with sessionmaker() as session:
+        assert (await repo.get_bot_settings(session))["profanity_base_chance"] == 5.5
+
+    async with sessionmaker() as session:
+        assert await repo.clear_bot_setting(session, "profanity_base_chance") is True
+        await session.commit()
+    async with sessionmaker() as session:
+        assert await repo.clear_bot_setting(session, "profanity_base_chance") is False
+        assert await repo.get_bot_settings(session) == {"profanity_step": 1.0}
+
+
 async def test_get_circle_by_submission(sessionmaker):
     async with sessionmaker() as session:
         sub = await repo.create_submission(

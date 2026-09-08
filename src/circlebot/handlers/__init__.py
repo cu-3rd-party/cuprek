@@ -5,6 +5,7 @@ from aiogram import Router
 from . import (
     circles,
     common,
+    config,
     idlists,
     moderation,
     profanity_watch,
@@ -19,6 +20,7 @@ def build_router() -> Router:
     router.include_router(common.router)
     router.include_router(status.router)
     router.include_router(idlists.router)
+    router.include_router(config.router)
     router.include_router(circles.router)
     router.include_router(submissions.router)
     router.include_router(moderation.router)

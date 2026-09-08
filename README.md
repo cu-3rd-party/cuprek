@@ -21,6 +21,10 @@
   ```
 
   По дефолту 4-е сообщение - 1%, 5-е - 1.5%, 6-е - 2%, ...
+* Три числа кривой (`PROFANITY_BASE_CHANCE`, `PROFANITY_FREE_MESSAGES`,
+  `PROFANITY_STEP`) — это дефолты из `.env`. Админ может переопределить любое из них
+  на лету командой `/config` (см. ниже), без пересборки; переопределение лежит в БД
+  и переживает рестарт.
 * Если шанс срабатывает, бот отвечает на сообщение случайным кружком из базы.
   После этого пользователь на сегодня в этом чате больше не отслеживается —
   один кружок в день на чат. В трёх разных чатах можно получить три кружка за день.
@@ -39,7 +43,7 @@
 * Кружки от `ADMIN_IDS` в личке добавляются в базу сразу (сид стартового набора),
   если `ADMIN_DM_AUTO_ACCEPT=true`.
 
-### Управление кружками (только `ADMIN_IDS`, в личке с ботом)
+### Команды администратора (только `ADMIN_IDS`, в личке с ботом)
 
 * `/circles` — бот присылает каждый активный кружок с кнопкой **🗑 Удалить кружок**
   (до 20 за раз, новые сверху). Удаление мягкое: `is_active=false`, кнопка меняется на
@@ -49,6 +53,15 @@
 * `/status` — состояние деплоя: аптайм, `@username` и id бота, версия сборки (`GIT_SHA`),
   пинг базы, счётчики кружков и заявок, возраст heartbeat. Проверить сервер с телефона,
   не заходя по ssh.
+* `/config` — показать текущую кривую «мат → кружок» (эффективные значения, дефолты
+  из `.env`, пример). Поменять на лету:
+  * `/config chance 2.0` — базовый шанс, % (`PROFANITY_BASE_CHANCE`);
+  * `/config free 5` — сколько матных сообщений в день не считаются (`PROFANITY_FREE_MESSAGES`);
+  * `/config step 1.0` — прибавка за каждое следующее сообщение, % (`PROFANITY_STEP`);
+  * `/config reset [chance|free|step]` — вернуть параметр (или все) к значению из `.env`.
+
+  Переопределения хранятся в таблице `bot_settings`, применяются со следующего матного
+  сообщения и переживают рестарт.
 * На карточке модерации у принятого кружка тоже есть кнопка 🗑 — модератор может
   откатить своё «Принять».
 
@@ -171,6 +184,8 @@ src/circlebot/
   services/
     profanity.py       детектор мата
     chance.py          формула вероятности
+    runtime_config.py  кривая: дефолт из .env + переопределение из bot_settings
+    access.py          IdRegistry: .env-роль + managed_ids, кэш в памяти
     locks.py           KeyedLock — сериализация сценария по (chat, user)
     alerts.py          WARNING+ из логов -> чат модераторов
     heartbeat.py       пинг БД + heartbeat-файл для healthcheck
@@ -181,6 +196,8 @@ src/circlebot/
     submissions.py     приём кружков в личке
     moderation.py      кнопки принять/отклонить
     circles.py         /circles, /rmcircle, удаление/возврат кружков
+    config.py          /config — правка кривой на лету
+    idlists.py         /admins, /guaranteed — правка списков id
     common.py          /start, /id
     status.py          /status — состояние деплоя
 migrations/            Alembic
@@ -256,10 +273,11 @@ docker compose logs --since 24h bot | grep -E 'WARNING|ERROR|CRITICAL'
 docker compose logs bot | grep 'circle='    # что, кому и с каким шансом улетело
 ```
 
-Нормальный старт — три строки, по которым видно всё существенное:
+Нормальный старт — четыре строки, по которым видно всё существенное:
 
 ```
-2026-09-07 20:33:50Z INFO     __main__: starting bot=@cuprekbot id=123456 build=80bade9 circles=42 admins=[111] mod_chat=-100... watched_chats=all tz=Europe/Moscow
+2026-09-07 20:33:50Z INFO     __main__: starting bot=@cuprekbot id=123456 build=80bade9 circles=42 admins=[111] mod_chat=-100... watched_chats=all guaranteed=none tz=Europe/Moscow
+2026-09-07 20:33:50Z INFO     __main__: profanity curve: free=3 base=1% step=0.5% overrides=none
 2026-09-07 20:33:50Z INFO     __main__: log alerts -> chat=-100... at WARNING
 2026-09-07 20:33:50Z INFO     __main__: polling started
 ```

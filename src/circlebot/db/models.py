@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Identity,
     Integer,
@@ -100,4 +101,19 @@ class ManagedId(Base):
     added_by: Mapped[int | None] = mapped_column(BigInteger)
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class BotSetting(Base):
+    """Admin override for one profanity-curve knob. A missing key means "use the
+    ``PROFANITY_*`` value from ``.env``"; see ``services.runtime_config``.
+    """
+
+    __tablename__ = "bot_settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    updated_by: Mapped[int | None] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

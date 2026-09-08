@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Circle, DailyActivity, ManagedId, Submission
+from .models import BotSetting, Circle, DailyActivity, ManagedId, Submission
 
 # ---------------------------------------------------------------------------
 # circles
@@ -227,4 +227,36 @@ async def remove_managed_id(session: AsyncSession, kind: str, telegram_id: int) 
         ManagedId.kind == kind, ManagedId.telegram_id == telegram_id
     )
     result = await session.execute(stmt)
+    return (result.rowcount or 0) > 0
+
+
+# ---------------------------------------------------------------------------
+# bot settings (admin overrides for the profanity-curve knobs)
+# ---------------------------------------------------------------------------
+
+
+async def get_bot_settings(session: AsyncSession) -> dict[str, float]:
+    """All stored overrides as ``{key: value}``. Empty when nothing is overridden."""
+    rows = await session.scalars(select(BotSetting))
+    return {row.key: row.value for row in rows}
+
+
+async def set_bot_setting(
+    session: AsyncSession, key: str, value: float, *, updated_by: int | None
+) -> None:
+    """Insert or replace one override. Single-writer (the ``/config`` handler), so a
+    read-modify-write is enough — see ``increment_profane_count`` for the same reasoning.
+    """
+    row = await session.get(BotSetting, key)
+    if row is None:
+        session.add(BotSetting(key=key, value=value, updated_by=updated_by))
+    else:
+        row.value = value
+        row.updated_by = updated_by
+    await session.flush()
+
+
+async def clear_bot_setting(session: AsyncSession, key: str) -> bool:
+    """Drop one override. Returns ``False`` if it was not set."""
+    result = await session.execute(delete(BotSetting).where(BotSetting.key == key))
     return (result.rowcount or 0) > 0
