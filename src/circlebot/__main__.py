@@ -124,7 +124,7 @@ async def main() -> None:
         circles = await _check_database(engine, sessionmaker)
         log.info(
             "starting bot=@%s id=%s build=%s circles=%s admins=%s mod_chat=%s "
-            "watched_chats=%s tz=%s",
+            "watched_chats=%s guaranteed=%s tz=%s",
             me.username,
             me.id,
             settings.git_sha,
@@ -132,6 +132,7 @@ async def main() -> None:
             sorted(settings.admin_ids),
             settings.mod_chat_id,
             sorted(settings.allowed_chat_ids) or "all",
+            sorted(settings.guaranteed_circle_ids) or "none",
             settings.timezone,
         )
         if circles == 0:
