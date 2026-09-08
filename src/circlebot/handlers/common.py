@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
-from ..config import Settings
+from ..services.access import IdRegistry
 
 router = Router(name="common")
 
@@ -21,10 +21,10 @@ async def cmd_start(message: Message) -> None:
 
 
 @router.message(Command("id"))
-async def cmd_id(message: Message, settings: Settings) -> None:
+async def cmd_id(message: Message, registry: IdRegistry) -> None:
     is_private = message.chat.type == "private"
     user = message.from_user
-    is_admin = user is not None and user.id in settings.admin_ids
+    is_admin = user is not None and registry.is_admin(user.id)
     if not is_private and not is_admin:
         return
     lines = [

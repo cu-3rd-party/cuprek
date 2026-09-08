@@ -1,4 +1,4 @@
-from circlebot.config import Settings, _parse_int_set
+from circlebot.config import Settings, parse_int_set
 
 
 def _mk(**over: object) -> Settings:
@@ -20,7 +20,7 @@ def test_guaranteed_ids_default_empty() -> None:
 
 
 def test_parse_int_set_forms() -> None:
-    assert _parse_int_set("1,2, 3") == {1, 2, 3}
-    assert _parse_int_set("") == set()
-    assert _parse_int_set(None) == set()
-    assert _parse_int_set([1, "2"]) == {1, 2}
+    assert parse_int_set("1,2, 3") == {1, 2, 3}
+    assert parse_int_set("") == set()
+    assert parse_int_set(None) == set()
+    assert parse_int_set([1, "2"]) == {1, 2}

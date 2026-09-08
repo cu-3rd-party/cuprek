@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Circle, DailyActivity, Submission
+from .models import Circle, DailyActivity, ManagedId, Submission
 
 # ---------------------------------------------------------------------------
 # circles
@@ -184,6 +184,47 @@ async def mark_circle_sent(
             DailyActivity.circle_sent.is_(False),
         )
         .values(circle_sent=True, circle_id=circle_id)
+    )
+    result = await session.execute(stmt)
+    return (result.rowcount or 0) > 0
+
+
+# ---------------------------------------------------------------------------
+# managed ids (runtime-editable admin / guaranteed lists)
+# ---------------------------------------------------------------------------
+
+
+async def list_managed_ids(session: AsyncSession, kind: str) -> set[int]:
+    stmt = select(ManagedId.telegram_id).where(ManagedId.kind == kind)
+    return set(await session.scalars(stmt))
+
+
+async def load_managed_ids(session: AsyncSession) -> dict[str, set[int]]:
+    """Every managed list in one query -- used once at startup to warm the cache."""
+    out: dict[str, set[int]] = {}
+    for kind, telegram_id in await session.execute(
+        select(ManagedId.kind, ManagedId.telegram_id)
+    ):
+        out.setdefault(kind, set()).add(telegram_id)
+    return out
+
+
+async def add_managed_id(
+    session: AsyncSession, kind: str, telegram_id: int, added_by: int | None
+) -> bool:
+    """Insert one ID. Returns ``False`` if that (kind, id) pair is already stored."""
+    existing = await session.get(ManagedId, (kind, telegram_id))
+    if existing is not None:
+        return False
+    session.add(ManagedId(kind=kind, telegram_id=telegram_id, added_by=added_by))
+    await session.flush()
+    return True
+
+
+async def remove_managed_id(session: AsyncSession, kind: str, telegram_id: int) -> bool:
+    """Delete one ID. Returns ``False`` if it was not stored to begin with."""
+    stmt = delete(ManagedId).where(
+        ManagedId.kind == kind, ManagedId.telegram_id == telegram_id
     )
     result = await session.execute(stmt)
     return (result.rowcount or 0) > 0

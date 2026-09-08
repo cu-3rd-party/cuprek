@@ -8,7 +8,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
-def _parse_int_set(value: object) -> set[int]:
+def parse_int_set(value: object) -> set[int]:
     if value is None or value == "":
         return set()
     if isinstance(value, (set, list, tuple)):
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     @field_validator("admin_ids", "allowed_chat_ids", "guaranteed_circle_ids", mode="before")
     @classmethod
     def _coerce_int_set(cls, value: object) -> set[int]:
-        return _parse_int_set(value)
+        return parse_int_set(value)
 
     @field_validator("alert_chat_id", mode="before")
     @classmethod

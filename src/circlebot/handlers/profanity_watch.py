@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
 from ..db import repo
+from ..services.access import IdRegistry
 from ..services.chance import circle_chance
 from ..services.locks import KeyedLock
 from ..services.profanity import ProfanityDetector
@@ -27,6 +28,7 @@ async def watch(
     settings: Settings,
     detector: ProfanityDetector,
     locks: KeyedLock,
+    registry: IdRegistry,
 ) -> None:
     if settings.allowed_chat_ids and message.chat.id not in settings.allowed_chat_ids:
         return
@@ -40,7 +42,7 @@ async def watch(
         return
 
     chat_id, user_id = message.chat.id, user.id
-    guaranteed = user_id in settings.guaranteed_circle_ids
+    guaranteed = registry.is_guaranteed(user_id)
     day = datetime.now(ZoneInfo(settings.timezone)).date()
 
     async with locks((chat_id, user_id)):

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import Settings
 from ..db import repo
 from ..keyboards import moderation_kb
+from ..services.access import IdRegistry
 
 router = Router(name="submissions")
 log = logging.getLogger(__name__)
@@ -18,7 +19,11 @@ log = logging.getLogger(__name__)
 
 @router.message(F.chat.type == "private", F.video_note)
 async def on_video_note(
-    message: Message, bot: Bot, session: AsyncSession, settings: Settings
+    message: Message,
+    bot: Bot,
+    session: AsyncSession,
+    settings: Settings,
+    registry: IdRegistry,
 ) -> None:
     video_note = message.video_note
     user = message.from_user
@@ -32,7 +37,7 @@ async def on_video_note(
         await message.reply("Такой кружок уже на модерации, дождись решения.")
         return
 
-    is_admin = user.id in settings.admin_ids
+    is_admin = registry.is_admin(user.id)
     if is_admin and settings.admin_dm_auto_accept:
         await repo.add_circle(
             session,

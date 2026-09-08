@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import Settings
 from ..db import repo
 from ..health import age_seconds
+from ..services.access import IdRegistry
 
 router = Router(name="status")
 log = logging.getLogger(__name__)
@@ -45,10 +46,11 @@ async def cmd_status(
     bot: Bot,
     session: AsyncSession,
     settings: Settings,
+    registry: IdRegistry,
     started_at: datetime,
 ) -> None:
     user = message.from_user
-    if user is None or user.id not in settings.admin_ids:
+    if user is None or not registry.is_admin(user.id):
         return
 
     me = await bot.me()  # cached by aiogram after the first call

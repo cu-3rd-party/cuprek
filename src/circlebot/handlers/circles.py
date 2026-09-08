@@ -10,9 +10,9 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import Settings
 from ..db import repo
 from ..keyboards import CircleAction, circle_row_kb, flip_circle_buttons
+from ..services.access import IdRegistry
 
 router = Router(name="circles")
 log = logging.getLogger(__name__)
@@ -21,8 +21,8 @@ GALLERY_CAP = 20
 SEND_GAP = 0.3  # seconds between video notes — stay under Telegram's per-chat rate limit
 
 
-def _is_admin(message: Message, settings: Settings) -> bool:
-    return message.from_user is not None and message.from_user.id in settings.admin_ids
+def _is_admin(message: Message, registry: IdRegistry) -> bool:
+    return message.from_user is not None and registry.is_admin(message.from_user.id)
 
 
 @router.message(Command("circles"), F.chat.type == "private")
@@ -30,10 +30,10 @@ async def cmd_circles(
     message: Message,
     bot: Bot,
     session: AsyncSession,
-    settings: Settings,
+    registry: IdRegistry,
     command: CommandObject,
 ) -> None:
-    if not _is_admin(message, settings):
+    if not _is_admin(message, registry):
         return
 
     show_all = (command.args or "").strip().lower() == "all"
@@ -68,10 +68,10 @@ async def cmd_circles(
 async def cmd_rmcircle(
     message: Message,
     session: AsyncSession,
-    settings: Settings,
+    registry: IdRegistry,
     command: CommandObject,
 ) -> None:
-    if not _is_admin(message, settings):
+    if not _is_admin(message, registry):
         return
 
     raw = (command.args or "").strip()
@@ -97,9 +97,9 @@ async def on_circle_action(
     callback: CallbackQuery,
     callback_data: CircleAction,
     session: AsyncSession,
-    settings: Settings,
+    registry: IdRegistry,
 ) -> None:
-    if callback.from_user.id not in settings.admin_ids:
+    if not registry.is_admin(callback.from_user.id):
         await callback.answer("Только для админов 🙅", show_alert=True)
         return
 

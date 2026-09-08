@@ -21,6 +21,7 @@ from .db.base import create_engine, create_sessionmaker
 from .handlers import build_router
 from .logging import setup_logging
 from .middlewares.db_session import DbSessionMiddleware
+from .services.access import ADMIN, GUARANTEED, IdRegistry
 from .services.alerts import attach_telegram_alerts, detach_telegram_alerts
 from .services.heartbeat import heartbeat_loop, ping_db
 from .services.locks import KeyedLock
@@ -108,10 +109,17 @@ async def main() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+    # Roots come from .env and can never be removed by a command; everything else
+    # is loaded from the database below and is editable at runtime.
+    registry = IdRegistry(
+        root_admins=frozenset(settings.admin_ids),
+        root_guaranteed=frozenset(settings.guaranteed_circle_ids),
+    )
     dp = Dispatcher(
         settings=settings,
         detector=detector,
         locks=KeyedLock(),
+        registry=registry,
         started_at=started_at,
     )
     dp.update.middleware(DbSessionMiddleware(sessionmaker))
@@ -122,6 +130,8 @@ async def main() -> None:
     try:
         me = await _identify(bot)
         circles = await _check_database(engine, sessionmaker)
+        async with sessionmaker() as session:
+            await registry.load(session)
         log.info(
             "starting bot=@%s id=%s build=%s circles=%s admins=%s mod_chat=%s "
             "watched_chats=%s guaranteed=%s tz=%s",
@@ -129,10 +139,10 @@ async def main() -> None:
             me.id,
             settings.git_sha,
             circles,
-            sorted(settings.admin_ids),
+            sorted(registry.effective(ADMIN)),
             settings.mod_chat_id,
             sorted(settings.allowed_chat_ids) or "all",
-            sorted(settings.guaranteed_circle_ids) or "none",
+            sorted(registry.effective(GUARANTEED)) or "none",
             settings.timezone,
         )
         if circles == 0:

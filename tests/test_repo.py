@@ -224,3 +224,26 @@ async def test_get_circle_by_submission(sessionmaker):
         found = await repo.get_circle_by_submission(session, sub_id)
         assert found is not None and found.submission_id == sub_id
         assert await repo.get_circle_by_submission(session, 999_999) is None
+
+
+async def test_managed_ids_crud(sessionmaker):
+    async with sessionmaker() as session:
+        assert await repo.add_managed_id(session, "admin", 11, added_by=1) is True
+        assert await repo.add_managed_id(session, "admin", 11, added_by=1) is False
+        assert await repo.add_managed_id(session, "guaranteed", 22, added_by=None) is True
+        await session.commit()
+
+    async with sessionmaker() as session:
+        assert await repo.list_managed_ids(session, "admin") == {11}
+        assert await repo.list_managed_ids(session, "guaranteed") == {22}
+        assert await repo.load_managed_ids(session) == {"admin": {11}, "guaranteed": {22}}
+
+    async with sessionmaker() as session:
+        assert await repo.remove_managed_id(session, "admin", 11) is True
+        assert await repo.remove_managed_id(session, "admin", 11) is False
+        await session.commit()
+
+    async with sessionmaker() as session:
+        assert await repo.list_managed_ids(session, "admin") == set()
+        # deleting one kind must not touch the other
+        assert await repo.list_managed_ids(session, "guaranteed") == {22}

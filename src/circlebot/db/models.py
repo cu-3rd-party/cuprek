@@ -81,3 +81,23 @@ class DailyActivity(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class ManagedId(Base):
+    """A Telegram ID added to a privileged list at runtime, via an admin command.
+
+    Complements the ``ADMIN_IDS`` / ``GUARANTEED_CIRCLE_IDS`` values in ``.env``:
+    those stay as immutable "root" entries so the bot can never be left without an
+    admin, while everything here can be added and removed without a redeploy.
+    """
+
+    __tablename__ = "managed_ids"
+
+    # "admin" | "guaranteed" -- one table with a discriminator keeps the repo
+    # helpers to a single set of functions instead of two parallel ones.
+    kind: Mapped[str] = mapped_column(Text, primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    added_by: Mapped[int | None] = mapped_column(BigInteger)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

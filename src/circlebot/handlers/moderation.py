@@ -9,9 +9,9 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import Settings
 from ..db import repo
 from ..keyboards import SubAction, decided_kb
+from ..services.access import IdRegistry
 
 router = Router(name="moderation")
 log = logging.getLogger(__name__)
@@ -39,9 +39,9 @@ async def on_moderation(
     callback_data: SubAction,
     bot: Bot,
     session: AsyncSession,
-    settings: Settings,
+    registry: IdRegistry,
 ) -> None:
-    if callback.from_user.id not in settings.admin_ids:
+    if not registry.is_admin(callback.from_user.id):
         await callback.answer("Решать могут только модераторы 🙅", show_alert=True)
         return
 
