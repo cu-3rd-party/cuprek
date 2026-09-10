@@ -27,6 +27,7 @@ from .services.heartbeat import heartbeat_loop, ping_db
 from .services.locks import KeyedLock
 from .services.profanity import ProfanityDetector
 from .services.runtime_config import resolve_profanity_config
+from .services.spam import RapidProfanityTracker
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ async def main() -> None:
         settings=settings,
         detector=detector,
         locks=KeyedLock(),
+        spam_tracker=RapidProfanityTracker(),
         registry=registry,
         started_at=started_at,
     )
@@ -153,10 +155,12 @@ async def main() -> None:
             overrides = await repo.get_bot_settings(session)
         curve = resolve_profanity_config(overrides, settings)
         log.info(
-            "profanity curve: free=%s base=%g%% step=%g%% overrides=%s",
+            "profanity curve: free=%s base=%g%% step=%g%% spam=%s/%ss overrides=%s",
             curve.free_messages,
             curve.base_chance,
             curve.step,
+            curve.spam_messages,
+            curve.spam_window,
             ", ".join(sorted(overrides)) or "none",
         )
 

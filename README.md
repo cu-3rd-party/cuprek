@@ -31,6 +31,12 @@
 * Для user-id из `GUARANTEED_CIRCLE_IDS` кружок приходит на КАЖДОЕ матное
   сообщение — в обход `PROFANITY_FREE_MESSAGES`, шанса и капа «один кружок в день
   на чат». `ALLOWED_CHAT_IDS` для них по-прежнему действует.
+* Антиспам-тормоз: если один пользователь присылает `PROFANITY_SPAM_MESSAGES`+
+  матных сообщений за `PROFANITY_SPAM_WINDOW` секунд (по дефолту 3 за 60 с), бот
+  ставит на сообщение реакцию 🤡 и кружок не шлёт — в обход шанса, дневного
+  счётчика и `GUARANTEED_CIRCLE_IDS`. Как только темп падает ниже порога,
+  поведение возвращается к обычному. Счётчик окна живёт в памяти процесса
+  (скользящее окно, чистится лениво) и сбрасывается при рестарте.
 
 ### Предложка
 
@@ -58,7 +64,9 @@
   * `/config chance 2.0` — базовый шанс, % (`PROFANITY_BASE_CHANCE`);
   * `/config free 5` — сколько матных сообщений в день не считаются (`PROFANITY_FREE_MESSAGES`);
   * `/config step 1.0` — прибавка за каждое следующее сообщение, % (`PROFANITY_STEP`);
-  * `/config reset [chance|free|step]` — вернуть параметр (или все) к значению из `.env`.
+  * `/config spam 3` — порог антиспам-тормоза, матных сообщений (`PROFANITY_SPAM_MESSAGES`);
+  * `/config spamwindow 60` — окно антиспам-тормоза, секунд (`PROFANITY_SPAM_WINDOW`);
+  * `/config reset [chance|free|step|spam|spamwindow]` — вернуть параметр (или все) к значению из `.env`.
 
   Переопределения хранятся в таблице `bot_settings`, применяются со следующего матного
   сообщения и переживают рестарт.
@@ -187,6 +195,7 @@ src/circlebot/
     runtime_config.py  кривая: дефолт из .env + переопределение из bot_settings
     access.py          IdRegistry: .env-роль + managed_ids, кэш в памяти
     locks.py           KeyedLock — сериализация сценария по (chat, user)
+    spam.py            счётчик матного спама в скользящем окне (в памяти)
     alerts.py          WARNING+ из логов -> чат модераторов
     heartbeat.py       пинг БД + heartbeat-файл для healthcheck
   middlewares/

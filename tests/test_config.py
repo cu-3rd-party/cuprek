@@ -35,3 +35,14 @@ def test_profanity_knobs_read_from_env() -> None:
     assert s.profanity_free_messages == 5
     assert s.profanity_base_chance == 2.5
     assert s.profanity_step == 1.0
+
+
+def test_profanity_spam_knobs_read_from_env() -> None:
+    s = _mk(profanity_spam_messages="5", profanity_spam_window="120")
+    assert s.profanity_spam_messages == 5
+    assert s.profanity_spam_window == 120
+
+
+def test_profanity_spam_knobs_default() -> None:
+    s = _mk()
+    assert (s.profanity_spam_messages, s.profanity_spam_window) == (3, 60)

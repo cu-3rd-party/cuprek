@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     profanity_base_chance: float = 1.0
     profanity_step: float = 0.5
 
+    # Anti-spam brake: PROFANITY_SPAM_MESSAGES+ profane messages from one user
+    # within PROFANITY_SPAM_WINDOW seconds -> clown reaction, no circle.
+    profanity_spam_messages: int = 3
+    profanity_spam_window: int = 60
+
     drop_pending_updates: bool = True
     log_level: str = "INFO"
 

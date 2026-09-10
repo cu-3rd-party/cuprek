@@ -34,6 +34,12 @@ KNOBS: dict[str, Knob] = {
         "profanity_free_messages", "free_messages", int, 0, 1000, "бесплатные сообщения", ""
     ),
     "step": Knob("profanity_step", "step", float, 0.0, 100.0, "шаг", "%"),
+    "spam": Knob(
+        "profanity_spam_messages", "spam_messages", int, 2, 20, "порог спама (сообщений)", ""
+    ),
+    "spamwindow": Knob(
+        "profanity_spam_window", "spam_window", int, 5, 3600, "окно спама, сек", ""
+    ),
 }
 
 
@@ -42,6 +48,8 @@ class ProfanityConfig:
     free_messages: int
     base_chance: float
     step: float
+    spam_messages: int
+    spam_window: int
 
 
 def resolve_profanity_config(
@@ -106,8 +114,9 @@ def render_config(overrides: dict[str, float], settings: Settings) -> str:
         "",
         f"{free + 1}-е матное сообщение за день: {roll(free + 1):g}% · "
         f"{free + 2}-е: {roll(free + 2):g}%",
+        f"Спам: {cfg.spam_messages}+ матных за {cfg.spam_window} с → 🤡 без кружка",
         "",
         "Изменить: <code>/config chance 2.0</code> · "
-        "сброс: <code>/config reset [chance|free|step]</code>",
+        "сброс: <code>/config reset [chance|free|step|spam|spamwindow]</code>",
     ]
     return "\n".join(lines)

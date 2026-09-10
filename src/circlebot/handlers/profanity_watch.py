@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import Message
+from aiogram.types import Message, ReactionTypeEmoji
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
@@ -17,6 +17,7 @@ from ..services.chance import circle_chance
 from ..services.locks import KeyedLock
 from ..services.profanity import ProfanityDetector
 from ..services.runtime_config import resolve_profanity_config
+from ..services.spam import RapidProfanityTracker
 
 router = Router(name="profanity_watch")
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ async def watch(
     settings: Settings,
     detector: ProfanityDetector,
     locks: KeyedLock,
+    spam_tracker: RapidProfanityTracker,
     registry: IdRegistry,
 ) -> None:
     if settings.allowed_chat_ids and message.chat.id not in settings.allowed_chat_ids:
@@ -45,8 +47,27 @@ async def watch(
     chat_id, user_id = message.chat.id, user.id
     guaranteed = registry.is_guaranteed(user_id)
     day = datetime.now(ZoneInfo(settings.timezone)).date()
+    cfg = resolve_profanity_config(await repo.get_bot_settings(session), settings)
 
     async with locks((chat_id, user_id)):
+        # Anti-spam brake: too many profane messages too fast -> clown, no circle.
+        # Runs before the daily-cap and guaranteed checks on purpose: it is a
+        # brake, not a curve tweak, and a firehose gets the same treatment
+        # whatever the sender's status. Returns before increment_profane_count,
+        # so burst spam does not advance the daily chance curve.
+        rapid = spam_tracker.hit((chat_id, user_id), cfg.spam_window)
+        if rapid >= cfg.spam_messages:
+            try:
+                await message.react([ReactionTypeEmoji(emoji="🤡")])
+            except TelegramAPIError:
+                log.warning("clown react failed chat=%s user=%s", chat_id, user_id)
+            else:
+                log.info(
+                    "clown react chat=%s user=%s rapid=%s/%s window=%ss",
+                    chat_id, user_id, rapid, cfg.spam_messages, cfg.spam_window,
+                )
+            return
+
         activity = await repo.get_daily_activity(session, chat_id, user_id, day)
         if not guaranteed and activity is not None and activity.circle_sent:
             return  # non-guaranteed user already got today's circle in this chat
@@ -55,7 +76,6 @@ async def watch(
         await session.commit()
         count = activity.profane_count
 
-        cfg = resolve_profanity_config(await repo.get_bot_settings(session), settings)
         chance = circle_chance(
             count,
             free_messages=cfg.free_messages,
